@@ -1,4 +1,4 @@
-from fact_extracter import FactExtracter
+from agent.fact_extracter import FactExtracter
 
 
 def main():
