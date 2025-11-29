@@ -1,11 +1,11 @@
 
-# 🛡️ TruthShield
+# 🛡️ Pragmatic
 
 ## Information
 
-Project: TruthShield (Pragmatic repository)
+Project: Pragmatic
 
-TruthShield is an AI-powered fact-checking platform that detects and analyzes potentially misleading content across social platforms. It uses a multi-agent approach: an extraction agent gathers claims and evidence from web search and fact-check databases, and a decision agent evaluates credibility and outputs a structured verdict. Integrations include a Python Flask API, a Node.js Twitter/X bot for monitoring and responding to mentions, and an Instagram reel extractor for media metadata.
+Pragmatic is an AI-powered fact-checking platform that detects and analyzes potentially misleading content across social platforms. It uses a multi-agent approach: an extraction agent gathers claims and evidence from web search and fact-check databases, and a decision agent evaluates credibility and outputs a structured verdict. Integrations include a Python Flask API, a Node.js Twitter/X bot for monitoring and responding to mentions, and an Instagram reel extractor for media metadata.
 
 Key components:
 - `agent/fact_extracter.py` — gathers evidence using search and fact-check tools.
