@@ -1,0 +1,21 @@
+{
+  "name": "pragmatic-twitter-bot",
+  "version": "1.0.0",
+  "description": "Twitter bot for fact-checking",
+  "type": "module",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "test": "node test.js",
+    "bot": "node bot.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2",
+    "oauth-1.0a": "^2.2.6",
+    "twitter-api-sdk": "^1.2.1"
+  }
+}
