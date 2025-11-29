@@ -1,12 +1,14 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from fact_extracter import FactExtracter
+from decision_maker import DecisionMaker
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize the FactExtracter agent
+# Initialize the FactExtracter and DecisionMaker agents
 extracter = FactExtracter()
+decision_maker = DecisionMaker()
 
 
 @app.route("/", methods=["GET"])
@@ -39,8 +41,13 @@ def query():
     user_input = data["message"]
     
     try:
-        response = extracter.run(user_input)
-        return jsonify({"response": response, "success": True})
+        # Agent 1: Extract facts and gather evidence
+        fact_data = extracter.run(user_input)
+        
+        # Agent 2: Make final decision based on the extracted facts
+        decision = decision_maker.make_decision(fact_data, user_input)
+        
+        return jsonify({"response": decision, "success": True})
     except Exception as e:
         return jsonify({"error": str(e), "success": False}), 500
 
