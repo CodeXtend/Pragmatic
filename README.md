@@ -1,327 +1,59 @@
-# Pragmatic 🔍
 
-**AI-Powered Fact-Checking Bot for Social Media**
+# 🛡️ Pragmatic
 
-Pragmatic is an intelligent fact-checking bot that can be tagged on social media posts (Reddit, Instagram, X/Twitter) to verify claims and provide evidence-based verdicts. It uses a multi-agent AI architecture powered by Google Gemini and smolagents to analyze content, extract facts, and deliver structured decisions.
+## Information
 
----
+Pragmatic is an AI-powered fact-checking platform that detects and analyzes potentially misleading content across social platforms. It uses a multi-agent approach: an extraction agent gathers claims and evidence from web search and fact-check databases, and a decision agent evaluates credibility and outputs a structured verdict. Integrations include a Python Flask API, a Node.js Twitter/X bot for monitoring and responding to mentions, and an Instagram reel extractor for media metadata.
 
-## 🎯 How It Works
+Key components:
+- `agent/fact_extracter.py` — gathers evidence using search and fact-check tools.
+- `agent/decision_maker.py` — analyzes evidence and formats a final verdict.
+- `agent/app.py` — Flask API exposing endpoints for queries and memory management.
+- `api/bot.js`, `api/server.js` — Node.js services for Twitter integration and media analysis.
+- `instagram_bot/reel_scrapper.py` — extracts reel metadata using Instaloader.
+- `tools/google_factcheck_tool.py` — wrapper for Google Fact Check API.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              USER INTERACTION                                │
-│   User tags @PragmaticBot on a post with a query like "Is this true?"       │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           SOCIAL MEDIA BOTS                                  │
-│   • Reddit Bot (PRAW)                                                        │
-│   • Instagram Bot (Instaloader)                                              │
-│   • X/Twitter Bot (API)                                                      │
-│                                                                              │
-│   Collects: User query, Post content, Caption, Comments, Media              │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         AGENT 1: WATCHER AGENT                               │
-│   📸 Analyzes post deeply using Gemini Vision                                │
-│   📝 Extracts text, context, and claims from images/videos                   │
-│   🔗 Processes captions and comments for context                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      AGENT 2: FACT EXTRACTOR AGENT                           │
-│   🌐 Web search via DuckDuckGo                                               │
-│   ✅ Google Fact Check API verification                                      │
-│   📚 Gathers evidence from multiple sources                                  │
-│   📊 Returns structured fact data with references                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      AGENT 3: DECISION MAKER AGENT                           │
-│   ⚖️ Analyzes all collected evidence                                         │
-│   🎯 Makes final TRUE/FAKE verdict                                           │
-│   📋 Provides detailed analysis with sources                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              BOT RESPONSE                                    │
-│   {                                                                          │
-│     "details": {                                                             │
-│       "fact": "This is Fake",                                                │
-│       "analysis": "Drinking hot water doesn't prevent COVID-19.             │
-│                    Sources: WHO, CDC, Reuters Fact Check..."                │
-│     }                                                                        │
-│   }                                                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+## Problem Statement
 
----
+Social platforms spread claims rapidly; many are unverified or false. Manual fact-checking is slow and cannot scale to the volume of posts, especially posts containing media (videos/reels) that may be manipulated or miscontextualized. Teams need an automated, auditable pipeline that:
 
-## 📁 Project Structure
+- Accepts a user-submitted claim or a social post (text or media).
+- Gathers supporting and contradicting evidence from authoritative sources and web search.
+- Produces a transparent, source-cited decision (e.g., "This is Fake" with analysis).
+- Integrates with social platforms to monitor mentions and provide timely responses.
 
-```
-Pragmatic/
-├── agent/                      # AI Agents (smolagents)
-│   ├── app.py                  # Flask API server
-│   ├── watcher.py              # Agent 1: Vision analysis
-│   ├── fact_extracter.py       # Agent 2: Fact extraction
-│   └── decision_maker.py       # Agent 3: Final decision
-│
-├── tools/                      # Custom tools for agents
-│   └── google_factcheck_tool.py
-│
-├── reddit_bot/                 # Reddit integration
-│   ├── bot.py                  # Reddit listener bot
-│   ├── requirements.txt
-│   └── README.md
-│
-├── instagram_bot/              # Instagram integration
-│   └── reel_scrapper.py        # Extract reel/post data
-│
-├── api/                        # External API integrations
-│   ├── server.js               # Node.js server
-│   └── Xapi.js                 # X/Twitter API
-│
-├── .env                        # Environment variables
-├── requirements.txt            # Python dependencies
-└── README.md
-```
+![Image](https://github.com/user-attachments/assets/2bfef727-e990-4ac2-91dc-2654d92257a6)
 
----
+## Solution
 
-## 🚀 Quick Start
+TruthShield provides a pragmatic, modular solution:
 
-### 1. Clone the Repository
+1. Ingest: Accept a claim or social post via the Flask API or by monitoring Twitter/X mentions with the Node.js bot.
+2. Extract Evidence: `FactExtracter` runs search tools (DuckDuckGo) and the Google Fact Check API, collects timestamps and source links, and builds structured evidence.
+3. Decide: `DecisionMaker` analyzes the collected evidence using a lightweight LLM agent and returns a JSON-formatted verdict with an explanation and cited sources.
+4. Respond & Store: The system returns the decision to the caller (API response) and optionally replies on the originating social post (bot reply). Conversation memory is stored in the agent to provide context-aware follow-ups and can be cleared or retrieved via API endpoints.
 
-```bash
-git clone https://github.com/CodeXtend/Pragmatic.git
-cd Pragmatic
-```
+![Image](https://github.com/user-attachments/assets/428a740d-20dc-47ba-8e9b-fddb00633ac5)
+![Image](https://github.com/user-attachments/assets/d4fc3f94-8559-45bb-b012-2e48c1b06d32)
 
-### 2. Install Dependencies
 
-```bash
-# Python dependencies
-pip install -r requirements.txt
+Design benefits:
+- Automated multi-source verification reduces manual workload and improves response time.
+- Structured JSON decisions make results auditable and easy to integrate.
+- Modular agents allow swapping or upgrading search and LLM components independently.
 
-# For Reddit bot
-cd reddit_bot && pip install -r requirements.txt && cd ..
+Quick example (conceptual):
 
-# For Node.js API (optional)
-cd api && npm install && cd ..
-```
+Request: POST `/api/query` { "message": "Do COVID-19 vaccines contain microchips?" }
 
-### 3. Configure Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-# LLM Configuration
-LLM_MODEL=gemini/gemini-2.0-flash
-GEMINI_API_KEY=your_gemini_api_key
-
-# Google Fact Check API
-GOOGLE_FACT_CHECK_API_KEY=your_google_factcheck_api_key
-
-# Reddit Bot (optional)
-REDDIT_CLIENT_ID=your_reddit_client_id
-REDDIT_CLIENT_SECRET=your_reddit_client_secret
-REDDIT_USERNAME=your_bot_username
-REDDIT_PASSWORD=your_bot_password
-REDDIT_USER_AGENT=PragmaticBot v1.0
-TARGET_SUBREDDIT=your_target_subreddit
-```
-
-### 4. Run the API Server
-
-```bash
-cd agent
-python app.py
-```
-
-The server will start at `http://localhost:5000`
-
----
-
-## 📡 API Endpoints
-
-### Health Check
-```http
-GET /
-```
-**Response:**
-```json
-{
-  "status": "ok",
-  "message": "Pragmatic API is running"
-}
-```
-
-### Fact Check Query
-```http
-POST /api/query
-Content-Type: application/json
-
-{
-  "message": "Is it true that drinking hot water prevents COVID-19?"
-}
-```
-
-**Response:**
-```json
-{
-  "response": {
-    "details": {
-      "fact": "This is Fake",
-      "analysis": "Drinking hot water does not prevent COVID-19. Sources: WHO states there is no evidence that hot water prevents coronavirus infection. CDC confirms that only vaccines and proper hygiene measures are effective preventive measures."
-    }
-  },
-  "success": true
-}
-```
-
-### Memory Management
-```http
-GET /api/memory          # Get conversation history
-DELETE /api/memory       # Clear conversation history
-```
-
----
-
-## 🤖 Agents Overview
-
-### Agent 1: Watcher Agent
-- **Purpose:** Deep analysis of social media posts
-- **Capabilities:**
-  - Gemini Vision for image/video analysis
-  - Text extraction from media
-  - Context understanding from captions and comments
-
-### Agent 2: Fact Extractor Agent
-- **Purpose:** Gather evidence and verify claims
-- **Tools:**
-  - `DuckDuckGoSearchTool` - Web search for related information
-  - `GoogleFactCheckTool` - Official fact-check database queries
-- **Output:** Structured fact data with sources and references
-
-### Agent 3: Decision Maker Agent
-- **Purpose:** Final verdict and analysis
-- **Tools:**
-  - `format_decision` - Structures the final output
-- **Output:** 
-  ```json
-  {
-    "details": {
-      "fact": "This is True/Fake",
-      "analysis": "Detailed explanation with sources..."
-    }
+Response: {
+  "details": {
+    "fact": "This is Fake",
+    "analysis": "Multiple authoritative sources (WHO, CDC, Reuters Fact Check) find no evidence; Google Fact Check entries debunk this claim."
   }
-  ```
+}
 
----
-
-## 🔧 Supported Platforms
-
-| Platform | Status | Trigger |
-|----------|--------|---------|
-| Reddit | ✅ Active | `!postinfo` or tag bot |
-| Instagram | 🔄 In Progress | Tag @PragmaticBot |
-| X/Twitter | 🔄 In Progress | Tag @PragmaticBot |
-
----
-
-## 📦 Dependencies
-
-### Python
-```
-flask
-flask-cors
-smolagents[litellm]
-python-dotenv
-diskcache
-requests
-praw (for Reddit)
-instaloader (for Instagram)
-```
-
-### Node.js (for X/Twitter API)
-```
-See api/package.json
-```
-
----
-
-## 🔑 API Keys Required
-
-1. **Google Gemini API Key** - For LLM and Vision capabilities
-   - Get it from: [Google AI Studio](https://aistudio.google.com/)
-
-2. **Google Fact Check API Key** - For official fact-check database
-   - Get it from: [Google Cloud Console](https://console.cloud.google.com/)
-
-3. **Reddit API Credentials** - For Reddit bot
-   - Get it from: [Reddit Apps](https://www.reddit.com/prefs/apps)
-
----
-
-## 🛠️ Development
-
-### Running Tests
-```bash
-python -m pytest tests/
-```
-
-### Running Individual Bots
-
-**Reddit Bot:**
-```bash
-cd reddit_bot
-python bot.py
-```
-
-**Flask API Server:**
-```bash
-cd agent
-python app.py
-```
-
----
-
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) for details.
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 👥 Team
-
-**CodeXtend** - [GitHub](https://github.com/CodeXtend)
-
----
-
-## 📞 Support
-
-For issues and questions, please open a [GitHub Issue](https://github.com/CodeXtend/Pragmatic/issues).
-
----
-
-<p align="center">
-  <b>Fighting Misinformation, One Fact at a Time 🎯</b>
-</p>
+If you'd like, I can now:
+- Run a quick verification example locally (needs API keys)
+- Trim or expand any section or change wording/tone
+- Add minimal Docker or deploy instructions back into the README
