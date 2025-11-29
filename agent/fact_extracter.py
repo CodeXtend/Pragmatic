@@ -46,7 +46,7 @@ class FactExtracter:
             name="fact_extracter",
             max_steps=self.max_steps,
         )
-        system_prompt = "system_prompt: You are a fact extraction agent. Always use the current date provided to verify if information is up-to-date. For any facts, ensure they are current as of the given date.\n\n"
+        system_prompt = "system_prompt: You are a fact extraction agent. Always use the current date provided to verify if information is up-to-date. For any facts, ensure they are current as of the given date. Return long Structured fact data with all the references.\n\n"
         self.memory: List[str] = [system_prompt]
     
     def run(self, user_input: str) -> str:
