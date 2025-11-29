@@ -1,7 +1,12 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from smolagents import CodeAgent, LiteLLMModel, DuckDuckGoSearchTool
 from dotenv import load_dotenv
-import os
 from typing import List, Optional
+from datetime import datetime
+from tools.google_factcheck_tool import GoogleFactCheckTool
 
 
 class FactExtracter:
@@ -36,13 +41,13 @@ class FactExtracter:
         )
         
         self.agent = CodeAgent(
-            tools=[DuckDuckGoSearchTool()],
+            tools=[DuckDuckGoSearchTool(), GoogleFactCheckTool()],
             model=self.model,
             name="fact_extracter",
             max_steps=self.max_steps,
         )
-        
-        self.memory: List[str] = []
+        system_prompt = "system_prompt: You are a fact extraction agent. Always use the current date provided to verify if information is up-to-date. For any facts, ensure they are current as of the given date.\n\n"
+        self.memory: List[str] = [system_prompt]
     
     def run(self, user_input: str) -> str:
         """
@@ -56,9 +61,20 @@ class FactExtracter:
         """
         self.memory.append(f"user: {user_input}")
         
-        prompt = "\n".join(self.memory)
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        prompt = f"Current date: {current_date}\n\n" + "\n".join(self.memory)
         
-        response = self.agent.run(prompt)
+        result = self.agent.run(prompt)
+        
+        # Extract the final answer string from the agent result
+        if hasattr(result, 'content'):
+            response = result.content
+        elif isinstance(result, dict) and 'output' in result:
+            response = result['output']
+        elif isinstance(result, dict) and 'content' in result:
+            response = result['content']
+        else:
+            response = str(result)
         
         self.memory.append(f"assistant: {response}")
         
