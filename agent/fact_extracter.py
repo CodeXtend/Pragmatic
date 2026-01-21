@@ -4,8 +4,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from smolagents import CodeAgent, LiteLLMModel, DuckDuckGoSearchTool
 from dotenv import load_dotenv
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
+import json
+import re
 from tools.google_factcheck_tool import GoogleFactCheckTool
 
 
@@ -17,14 +19,14 @@ class FactExtracter:
     and extract facts using DuckDuckGo search and an LLM model.
     """
     
-    def __init__(self, model_id: Optional[str] = None, api_key: Optional[str] = None, max_steps: int = 10):
+    def __init__(self, model_id: Optional[str] = None, api_key: Optional[str] = None, max_steps: int = 4):
         """
         Initialize the FactExtracter agent.
         
         Args:
             model_id: The LLM model ID. If None, reads from LLM_MODEL env variable.
             api_key: The API key for the model. If None, reads from GEMINI_API_KEY env variable.
-            max_steps: Maximum number of steps the agent can take (default: 10).
+            max_steps: Maximum number of steps the agent can take (default: 4 for optimization).
         """
         load_dotenv()
         
@@ -79,7 +81,65 @@ class FactExtracter:
         self.memory.append(f"assistant: {response}")
         
         return response
-    
+
+    def fast_check(self, claim: str) -> Dict[str, Any]:
+        """
+        Fast fact-check verification without agent loop (skips ReAct).
+        Uses a SINGLE LLM call to save quota.
+        """
+        # 1. Search directly (No LLM cost)
+        search_tool = DuckDuckGoSearchTool()
+        try:
+            # Search for the claim
+            search_results = search_tool.forward(f"{claim} fact check")
+        except Exception as e:
+            search_results = f"Search failed: {e}"
+        
+        # 2. Single LLM Call
+        prompt = f"""You are a strict and skeptical fact-checking AI. Your job is to verify claims using ONLY the provided search evidence.
+
+CLAIM: "{claim}"
+
+EVIDENCE FROM SEARCH:
+{search_results}
+
+INSTRUCTIONS:
+1. If the search results say the claim is FALSE, DEBUNKED, A RUMOR, or SATIRE, your verdict MUST be "False".
+2. If the search results do NOT contain reputable news reports confirming the event, your verdict MUST be "False" or "Unverified".
+3. Do NOT use your internal knowledge to validate breaking news or recent events. If it's not in the evidence, it's not verified.
+4. If the evidence says "no reports found" or is unrelated, mark as "False" or "Unverified".
+5. Be aggressive in flagging fake news.
+
+Return ONLY a JSON object:
+{{
+    "verdict": "Verified" | "False" | "Unverified",
+    "analysis": "<explanation citing the evidence>"
+}}"""
+        
+        try:
+            # Direct model call
+            messages = [{"role": "user", "content": prompt}]
+            response = self.model(messages)
+            
+            # Extract content
+            content = ""
+            if hasattr(response, 'content'):
+                content = response.content
+            elif isinstance(response, dict):
+                content = response.get('content', str(response))
+            else:
+                content = str(response)
+                
+            # Parse JSON
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(0))
+            else:
+                return {"verdict": "Unverified", "analysis": content}
+                
+        except Exception as e:
+            return {"verdict": "Error", "analysis": f"Fact-check error: {str(e)}"}
+
     def clear_memory(self):
         """Clear the conversation memory."""
         self.memory = []

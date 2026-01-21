@@ -1,0 +1,17 @@
+# Pragmatic - Fact-Check Bot Dependencies
+
+# Web API
+flask
+flask-cors
+
+# AI/ML Agents
+smolagents[litellm]
+google-generativeai
+
+# Twitter API
+requests
+requests-oauthlib
+
+# Utilities
+python-dotenv
+diskcache

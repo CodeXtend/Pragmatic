@@ -57,14 +57,14 @@ class DecisionMaker:
     about whether a claim is true or fake.
     """
     
-    def __init__(self, model_id: Optional[str] = None, api_key: Optional[str] = None, max_steps: int = 5):
+    def __init__(self, model_id: Optional[str] = None, api_key: Optional[str] = None, max_steps: int = 3):
         """
         Initialize the DecisionMaker agent.
         
         Args:
             model_id: The LLM model ID. If None, reads from LLM_MODEL env variable.
             api_key: The API key for the model. If None, reads from GEMINI_API_KEY env variable.
-            max_steps: Maximum number of steps the agent can take (default: 5).
+            max_steps: Maximum number of steps the agent can take (default: 3).
         """
         load_dotenv()
         
