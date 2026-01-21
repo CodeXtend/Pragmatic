@@ -1,3 +1,16 @@
+/**
+ * 🤖 PRAGMATIC - FACT-CHECK BOT (Simple Version)
+ * 
+ * This is the simple standalone version - just analyze a tweet.
+ * No server, no polling, no rate limiting issues.
+ * 
+ * USAGE: 
+ *   1. Change the tweet ID at the bottom
+ *   2. Run: node bot.js
+ * 
+ * For the test API version, use: node test.js
+ */
+
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 import crypto from "crypto";
@@ -459,7 +472,164 @@ async function watcherAgent(tweetId) {
 
   console.log(JSON.stringify(finalOutput, null, 2));
 
+  // Step 4: POST data to ngrok API, get response, and reply on Twitter
+  await postToApi(finalOutput, tweetId);
+
   return finalOutput;
+}
+
+// ============== POST TO API ==============
+
+const NGROK_API_URL = "https://intercranial-solange-unprecipitantly.ngrok-free.dev/api/query";
+
+/**
+ * Post a reply tweet
+ */
+async function postReply(text, replyToTweetId) {
+  const url = "https://api.twitter.com/2/tweets";
+
+  console.log(`\n📡 POSTING REPLY TO TWITTER`);
+  console.log(`   Reply to tweet: ${replyToTweetId}`);
+
+  const body = {
+    text: text,
+    reply: {
+      in_reply_to_tweet_id: replyToTweetId,
+    },
+  };
+
+  const authHeader = oauth.toHeader(
+    oauth.authorize({ url, method: "POST" }, token)
+  );
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+    console.log(`   Status: ${response.status}`);
+    
+    if (data.data) {
+      console.log(`   ✅ Reply posted! Tweet ID: ${data.data.id}`);
+    } else {
+      console.log(`   ⚠️ Reply response:`, JSON.stringify(data, null, 2));
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`   ❌ POST ERROR: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Extract fact and analysis from API response and format reply
+ */
+function formatFactCheckReply(apiResponse) {
+  try {
+    // Parse the nested analysis string if it's a string
+    let fact = "Unable to determine";
+    let analysis = "Analysis pending";
+
+    if (apiResponse?.response?.details) {
+      const details = apiResponse.response.details;
+      
+      // Get fact
+      if (details.fact) {
+        fact = details.fact;
+      }
+      
+      // Get analysis - it might be a JSON string that needs parsing
+      if (details.analysis) {
+        let analysisData = details.analysis;
+        
+        // Try to parse if it's a string containing JSON-like content
+        if (typeof analysisData === "string") {
+          // Extract fact and analysis from the string format
+          const factMatch = analysisData.match(/'fact':\s*'([^']+)'/);
+          const analysisMatch = analysisData.match(/'analysis':\s*'([^']+)'/);
+          
+          if (factMatch) fact = factMatch[1];
+          if (analysisMatch) analysis = analysisMatch[1];
+        } else if (typeof analysisData === "object") {
+          if (analysisData.fact) fact = analysisData.fact;
+          if (analysisData.analysis) analysis = analysisData.analysis;
+        }
+      }
+    }
+
+    // Format the reply (Twitter 280 char limit)
+    let reply = `🔍 FACT CHECK\n\n`;
+    reply += `📌 Fact: ${fact}\n\n`;
+    reply += `📊 Analysis: ${analysis}`;
+    
+    // Truncate if too long
+    if (reply.length > 275) {
+      reply = reply.substring(0, 272) + "...";
+    }
+    
+    reply += `\n\n🤖 #Pragmatic`;
+    
+    // Final check for 280 limit
+    if (reply.length > 280) {
+      reply = reply.substring(0, 277) + "...";
+    }
+
+    return reply;
+  } catch (error) {
+    console.error("Error formatting reply:", error.message);
+    return `🔍 FACT CHECK\n\nAnalysis complete. Check thread for details.\n\n🤖 #Pragmatic`;
+  }
+}
+
+/**
+ * Post the analysis data to the ngrok API, get response, and reply on Twitter
+ */
+async function postToApi(data, tweetId) {
+  console.log("\n" + "═".repeat(60));
+  console.log("📤 POSTING DATA TO API");
+  console.log("═".repeat(60));
+  console.log(`   URL: ${NGROK_API_URL}`);
+
+  try {
+    const response = await fetch(NGROK_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    console.log(`\n   ✅ API Response (Status: ${response.status}):`);
+    console.log("═".repeat(60));
+    console.log(JSON.stringify(responseData, null, 2));
+    console.log("═".repeat(60));
+
+    // Step 5: Format and post reply to Twitter
+    if (responseData.success) {
+      console.log("\n" + "═".repeat(60));
+      console.log("🐦 POSTING FACT-CHECK REPLY TO TWITTER");
+      console.log("═".repeat(60));
+      
+      const replyText = formatFactCheckReply(responseData);
+      console.log(`\n   Reply message:\n   "${replyText}"`);
+      
+      await postReply(replyText, tweetId);
+    }
+
+    return responseData;
+  } catch (error) {
+    console.error(`\n   ❌ API Error: ${error.message}`);
+    return { error: error.message };
+  }
 }
 
 // ============== RUN ==============
@@ -472,5 +642,9 @@ if (!GEMINI_API_KEY) {
   console.log("   Get your key from: https://aistudio.google.com/app/apikey\n");
 }
 
-// Run the Watcher Agent on a tweet
-watcherAgent("1994478361545220195");
+// ===== CHANGE THIS TWEET ID TO ANALYZE DIFFERENT TWEETS =====
+const TWEET_ID = "1994478361545220195";
+
+// Run the Watcher Agent
+console.log(`\n🚀 Analyzing tweet: ${TWEET_ID}`);
+watcherAgent(TWEET_ID);
