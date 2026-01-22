@@ -2,14 +2,14 @@
     "version": 2,
     "builds": [
         {
-            "src": "/agent/app.py",
-            "use": "@vercel/node"
+            "src": "agent/app.py",
+            "use": "@vercel/python"
         }
     ],
     "routes": [
         {
             "src": "/(.*)",
-            "dest": "/agent/app.py"
+            "dest": "agent/app.py"
         }
     ]
 }
