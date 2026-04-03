@@ -1,6 +1,23 @@
-flask
-flask-cors
-smolagents[litellm]
+# Pragmatic - Fact-Check Bot Dependencies
+
+# Web API
+flask==3.0.0
+flask-cors==4.0.0
+
+# AI Agents
+smolagents
+litellm
+google-generativeai
+
+# Search
+duckduckgo-search
+ddgs
+
+# HTTP & Auth
+requests
+requests-oauthlib
+
+# Utilities
 python-dotenv
 diskcache
-requests
+gunicorn

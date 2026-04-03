@@ -1,12 +1,14 @@
 /**
- * 🤖 PRAGMATIC - TWITTER FACT-CHECK BOT
+ * 🤖 PRAGMATIC - FACT-CHECK BOT (Simple Version)
  * 
- * When someone tags this bot on a tweet with media (video/image):
- * 1. Downloads the media
- * 2. Analyzes it with Gemini 2.0 Flash
- * 3. Replies with fact-check analysis
+ * This is the simple standalone version - just analyze a tweet.
+ * No server, no polling, no rate limiting issues.
  * 
- * RUN: node bot.js
+ * USAGE: 
+ *   1. Change the tweet ID at the bottom
+ *   2. Run: node bot.js
+ * 
+ * For the test API version, use: node test.js
  */
 
 import fetch from "node-fetch";
@@ -21,29 +23,13 @@ dotenv.config();
 
 // ============== CONFIGURATION ==============
 
-const CONFIG = {
-  BOT_NAME: "Pragmatic",
-  POLL_INTERVAL_MS: 15000, // 15 seconds
-  AUTO_REPLY: true,
-};
-
-// Environment variables
-const BEARER_TOKEN = process.env.Bearer_Token?.trim();
 const API_KEY = process.env.TWITTER_API_KEY?.trim();
 const API_SECRET = process.env.TWITTER_API_SECRET?.trim();
 const ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN?.trim();
 const ACCESS_SECRET = process.env.TWITTER_ACCESS_SECRET?.trim();
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim();
 
-console.log("\n🔧 DEBUG: Checking environment variables...");
-console.log(`   BEARER_TOKEN: ${BEARER_TOKEN ? "✓ Set" : "✗ Missing"}`);
-console.log(`   API_KEY: ${API_KEY ? "✓ Set" : "✗ Missing"}`);
-console.log(`   API_SECRET: ${API_SECRET ? "✓ Set" : "✗ Missing"}`);
-console.log(`   ACCESS_TOKEN: ${ACCESS_TOKEN ? "✓ Set" : "✗ Missing"}`);
-console.log(`   ACCESS_SECRET: ${ACCESS_SECRET ? "✓ Set" : "✗ Missing"}`);
-console.log(`   GEMINI_API_KEY: ${GEMINI_API_KEY ? "✓ Set" : "✗ Missing"}`);
-
-// OAuth 1.0a for user context endpoints
+// OAuth 1.0a setup for Twitter
 const oauth = new OAuth({
   consumer: {
     key: API_KEY,
@@ -63,87 +49,7 @@ const token = {
 // Gemini AI setup
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
-// Bot state
-let processedMentions = new Set();
-let lastMentionId = null;
-let botUserId = null;
-let botUsername = null;
-let isRunning = false;
-
-// ============== TWITTER API FUNCTIONS ==============
-
-/**
- * Sleep helper
- */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Get authenticated user info - Using OAuth 1.0a
- */
-async function getMe(retries = 3) {
-  const url = "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url,public_metrics";
-
-  console.log("\n📡 API CALL: GET /users/me");
-  
-  const authHeader = oauth.toHeader(
-    oauth.authorize({ url, method: "GET" }, token)
-  );
-
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        headers: { ...authHeader },
-      });
-
-      console.log(`   Status: ${response.status}`);
-      
-      if (response.status === 429) {
-        const waitTime = attempt * 60000; // Wait 1 min, 2 min, 3 min...
-        console.log(`   ⏳ Rate limited! Waiting ${waitTime/1000} seconds before retry ${attempt}/${retries}...`);
-        await sleep(waitTime);
-        continue;
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`   ❌ ERROR: ${error.message}`);
-      if (attempt === retries) throw error;
-      await sleep(5000);
-    }
-  }
-}
-
-/**
- * Get mentions - Using OAuth 1.0a (required for user context)
- */
-async function getMentions(userId, sinceId = null) {
-  let url = `https://api.twitter.com/2/users/${userId}/mentions?tweet.fields=created_at,author_id,conversation_id,referenced_tweets&expansions=author_id,referenced_tweets.id&user.fields=id,name,username&max_results=5`;
-
-  if (sinceId) {
-    url += `&since_id=${sinceId}`;
-  }
-
-  // Use OAuth 1.0a for mentions (user context required)
-  const authHeader = oauth.toHeader(
-    oauth.authorize({ url, method: "GET" }, token)
-  );
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { ...authHeader },
-    });
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error(`   ❌ FETCH ERROR: ${error.message}`);
-    throw error;
-  }
-}
+// ============== TWITTER FUNCTIONS ==============
 
 /**
  * Get tweet details with media
@@ -194,47 +100,6 @@ async function getUserById(userId) {
 }
 
 /**
- * Post a reply tweet
- */
-async function postReply(text, replyToTweetId) {
-  const url = "https://api.twitter.com/2/tweets";
-
-  console.log(`\n📡 API CALL: POST /tweets (reply)`);
-  console.log(`   Reply to: ${replyToTweetId}`);
-
-  const body = {
-    text: text,
-    reply: {
-      in_reply_to_tweet_id: replyToTweetId,
-    },
-  };
-
-  const authHeader = oauth.toHeader(
-    oauth.authorize({ url, method: "POST" }, token)
-  );
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...authHeader,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json();
-    console.log(`   Status: ${response.status}`);
-    return data;
-  } catch (error) {
-    console.error(`   ❌ POST ERROR: ${error.message}`);
-    throw error;
-  }
-}
-
-// ============== MEDIA FUNCTIONS ==============
-
-/**
  * Extract best video MP4 URL from media
  */
 function getVideoMp4Url(media) {
@@ -266,19 +131,11 @@ async function downloadVideo(videoUrl, filename) {
   return { filepath, buffer };
 }
 
-/**
- * Download image to buffer
- */
-async function downloadImage(imageUrl) {
-  console.log("📥 Downloading image...");
-  const response = await fetch(imageUrl);
-  return await response.buffer();
-}
-
-// ============== GEMINI ANALYSIS ==============
+// ============== GEMINI VIDEO ANALYSIS ==============
 
 /**
  * Analyze video with Gemini 2.0 Flash
+ * Extracts: visual content, text on screen, speech transcription
  */
 async function analyzeVideoWithGemini(videoBuffer, tweetData) {
   if (!genAI) {
@@ -289,6 +146,8 @@ async function analyzeVideoWithGemini(videoBuffer, tweetData) {
   console.log("\n🤖 Analyzing video with Gemini 2.0 Flash...");
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  // Convert video buffer to base64
   const videoBase64 = videoBuffer.toString("base64");
 
   const prompt = `You are a fact-checking assistant analyzing a video from Twitter/X.
@@ -352,12 +211,15 @@ Return ONLY valid JSON in this exact format:
     const responseText = result.response.text();
     console.log("   ✅ Gemini analysis complete!");
 
+    // Parse JSON from response
     try {
+      // Extract JSON from response (handle markdown code blocks)
       let jsonStr = responseText;
       const jsonMatch = responseText.match(/```json\n?([\s\S]*?)\n?```/);
       if (jsonMatch) {
         jsonStr = jsonMatch[1];
       } else {
+        // Try to find JSON object directly
         const objMatch = responseText.match(/\{[\s\S]*\}/);
         if (objMatch) {
           jsonStr = objMatch[0];
@@ -376,9 +238,9 @@ Return ONLY valid JSON in this exact format:
 }
 
 /**
- * Analyze image with Gemini 2.0 Flash
+ * Analyze image with Gemini (for photo tweets)
  */
-async function analyzeImageWithGemini(imageBuffer, tweetData) {
+async function analyzeImageWithGemini(imageUrl, tweetData) {
   if (!genAI) {
     console.log("❌ GEMINI_API_KEY not found in .env");
     return null;
@@ -387,6 +249,10 @@ async function analyzeImageWithGemini(imageBuffer, tweetData) {
   console.log("\n🤖 Analyzing image with Gemini 2.0 Flash...");
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  // Download image
+  const response = await fetch(imageUrl);
+  const imageBuffer = await response.buffer();
   const imageBase64 = imageBuffer.toString("base64");
 
   const prompt = `You are a fact-checking assistant analyzing an image from Twitter/X.
@@ -465,7 +331,7 @@ Return ONLY valid JSON:
   }
 }
 
-// ============== WATCHER AGENT ==============
+// ============== MAIN WATCHER AGENT ==============
 
 /**
  * Agent 1: Watcher Agent
@@ -554,8 +420,7 @@ async function watcherAgent(tweetId) {
       const imageUrl = mediaItem.url;
       console.log(`   📷 Image URL: ${imageUrl}`);
 
-      const buffer = await downloadImage(imageUrl);
-      analysisResult = await analyzeImageWithGemini(buffer, tweetContext);
+      analysisResult = await analyzeImageWithGemini(imageUrl, tweetContext);
     }
   }
 
@@ -607,247 +472,179 @@ async function watcherAgent(tweetId) {
 
   console.log(JSON.stringify(finalOutput, null, 2));
 
+  // Step 4: POST data to ngrok API, get response, and reply on Twitter
+  await postToApi(finalOutput, tweetId);
+
   return finalOutput;
 }
 
-// ============== GENERATE REPLY MESSAGE ==============
+// ============== POST TO API ==============
+
+const NGROK_API_URL = "https://intercranial-solange-unprecipitantly.ngrok-free.dev/api/query";
 
 /**
- * Generate a fact-check reply message from analysis
+ * Post a reply tweet
  */
-function generateFactCheckReply(analysis, mentionAuthor) {
-  if (!analysis?.details) {
-    return `Hello @${mentionAuthor}! 👋\n\nI couldn't analyze that content. Please make sure to tag me on a tweet that contains a video or image.\n\n🤖 Pragmatic`;
-  }
+async function postReply(text, replyToTweetId) {
+  const url = "https://api.twitter.com/2/tweets";
 
-  const result = analysis.details;
-  const isMisleading = result.is_potentially_misleading;
-  const confidence = result.confidence_score || 0;
+  console.log(`\n📡 POSTING REPLY TO TWITTER`);
+  console.log(`   Reply to tweet: ${replyToTweetId}`);
 
-  let emoji = "ℹ️";
-  let verdict = "Analysis Complete";
-  
-  if (isMisleading === true) {
-    emoji = "⚠️";
-    verdict = "Potentially Misleading";
-  } else if (isMisleading === false) {
-    emoji = "✅";
-    verdict = "No Red Flags Detected";
-  }
+  const body = {
+    text: text,
+    reply: {
+      in_reply_to_tweet_id: replyToTweetId,
+    },
+  };
 
-  let reply = `${emoji} Fact-Check for @${mentionAuthor}\n\n`;
-  reply += `📊 Verdict: ${verdict}\n`;
-  reply += `🎯 Confidence: ${confidence}%\n\n`;
-  
-  // Add brief analysis (keep it short for Twitter)
-  const briefAnalysis = result.detail_analysis?.substring(0, 150) || "Analysis complete";
-  reply += `📝 ${briefAnalysis}${briefAnalysis.length >= 150 ? "..." : ""}\n\n`;
-  
-  reply += `🤖 #FactCheck #Pragmatic`;
-
-  // Twitter 280 char limit
-  if (reply.length > 280) {
-    reply = reply.substring(0, 277) + "...";
-  }
-
-  return reply;
-}
-
-// ============== BOT CORE LOGIC ==============
-
-/**
- * Process a single mention - Analyze the tagged tweet and reply
- */
-async function processMention(mention, includesUsers, includesTweets) {
-  const mentionId = mention.id;
-  
-  // Skip if already processed
-  if (processedMentions.has(mentionId)) {
-    return null;
-  }
-  
-  processedMentions.add(mentionId);
-  
-  // Get mention author
-  const mentionAuthor = includesUsers?.find((u) => u.id === mention.author_id);
-  const username = mentionAuthor?.username || "there";
-  
-  console.log(`\n${"─".repeat(50)}`);
-  console.log(`📩 NEW MENTION from @${username}`);
-  console.log(`   Text: ${mention.text}`);
-  console.log(`${"─".repeat(50)}`);
-  
-  // Find the tweet they're replying to (the one to analyze)
-  let targetTweetId = null;
-  
-  // Check if this mention is a reply to another tweet
-  const repliedTo = mention.referenced_tweets?.find(ref => ref.type === "replied_to");
-  if (repliedTo) {
-    targetTweetId = repliedTo.id;
-    console.log(`   🎯 Found replied-to tweet: ${targetTweetId}`);
-  }
-  
-  // If no reply, check conversation
-  if (!targetTweetId && mention.conversation_id && mention.conversation_id !== mentionId) {
-    targetTweetId = mention.conversation_id;
-    console.log(`   🎯 Using conversation root: ${targetTweetId}`);
-  }
+  const authHeader = oauth.toHeader(
+    oauth.authorize({ url, method: "POST" }, token)
+  );
 
   try {
-    let replyMessage;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+    console.log(`   Status: ${response.status}`);
     
-    if (targetTweetId) {
-      // Analyze the target tweet with Watcher Agent
-      console.log(`   🔍 Analyzing tweet ${targetTweetId}...`);
-      const analysis = await watcherAgent(targetTweetId);
+    if (data.data) {
+      console.log(`   ✅ Reply posted! Tweet ID: ${data.data.id}`);
+    } else {
+      console.log(`   ⚠️ Reply response:`, JSON.stringify(data, null, 2));
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`   ❌ POST ERROR: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Extract fact and analysis from API response and format reply
+ */
+function formatFactCheckReply(apiResponse) {
+  try {
+    // Parse the nested analysis string if it's a string
+    let fact = "Unable to determine";
+    let analysis = "Analysis pending";
+
+    if (apiResponse?.response?.details) {
+      const details = apiResponse.response.details;
       
-      if (analysis) {
-        console.log(`   ✅ Analysis complete!`);
-        console.log(`   📊 Misleading: ${analysis.details?.is_potentially_misleading}`);
-        console.log(`   🎯 Confidence: ${analysis.details?.confidence_score}%`);
-        
-        replyMessage = generateFactCheckReply(analysis, username);
-      } else {
-        replyMessage = `Hello @${username}! 👋\n\nI couldn't analyze that tweet. It may not contain media or there was an error.\n\n🤖 Pragmatic`;
+      // Get fact
+      if (details.fact) {
+        fact = details.fact;
       }
-    } else {
-      // No target tweet found - direct mention without reply
-      replyMessage = `Hello @${username}! 👋\n\nTo fact-check a post, please reply to a tweet containing an image or video and tag me.\n\nExample: Reply to a suspicious post and mention @${botUsername}\n\n🤖 Pragmatic`;
+      
+      // Get analysis - it might be a JSON string that needs parsing
+      if (details.analysis) {
+        let analysisData = details.analysis;
+        
+        // Try to parse if it's a string containing JSON-like content
+        if (typeof analysisData === "string") {
+          // Extract fact and analysis from the string format
+          const factMatch = analysisData.match(/'fact':\s*'([^']+)'/);
+          const analysisMatch = analysisData.match(/'analysis':\s*'([^']+)'/);
+          
+          if (factMatch) fact = factMatch[1];
+          if (analysisMatch) analysis = analysisMatch[1];
+        } else if (typeof analysisData === "object") {
+          if (analysisData.fact) fact = analysisData.fact;
+          if (analysisData.analysis) analysis = analysisData.analysis;
+        }
+      }
+    }
+
+    // Format the reply (Twitter 280 char limit)
+    let reply = `🔍 FACT CHECK\n\n`;
+    reply += `📌 Fact: ${fact}\n\n`;
+    reply += `📊 Analysis: ${analysis}`;
+    
+    // Truncate if too long
+    if (reply.length > 275) {
+      reply = reply.substring(0, 272) + "...";
     }
     
-    console.log(`   💬 Sending reply...`);
-    const replyResult = await postReply(replyMessage, mentionId);
+    reply += `\n\n🤖 #Pragmatic`;
     
-    if (replyResult.data) {
-      console.log(`   ✅ Reply sent! ID: ${replyResult.data.id}`);
-    } else {
-      console.log(`   ⚠️ Reply failed:`, JSON.stringify(replyResult));
+    // Final check for 280 limit
+    if (reply.length > 280) {
+      reply = reply.substring(0, 277) + "...";
     }
-    
-    return { success: true, mention_id: mentionId };
-    
+
+    return reply;
   } catch (error) {
-    console.log(`   ❌ Error: ${error.message}`);
-    return null;
+    console.error("Error formatting reply:", error.message);
+    return `🔍 FACT CHECK\n\nAnalysis complete. Check thread for details.\n\n🤖 #Pragmatic`;
   }
 }
 
 /**
- * Poll for new mentions
+ * Post the analysis data to the ngrok API, get response, and reply on Twitter
  */
-async function pollMentions() {
+async function postToApi(data, tweetId) {
+  console.log("\n" + "═".repeat(60));
+  console.log("📤 POSTING DATA TO API");
+  console.log("═".repeat(60));
+  console.log(`   URL: ${NGROK_API_URL}`);
+
   try {
-    // Fetch mentions
-    const response = await getMentions(botUserId, lastMentionId);
-    
-    if (response.errors) {
-      console.log(`\n⚠️ API Error: ${response.errors[0]?.message || JSON.stringify(response.errors)}`);
-      return;
+    const response = await fetch(NGROK_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    console.log(`\n   ✅ API Response (Status: ${response.status}):`);
+    console.log("═".repeat(60));
+    console.log(JSON.stringify(responseData, null, 2));
+    console.log("═".repeat(60));
+
+    // Step 5: Format and post reply to Twitter
+    if (responseData.success) {
+      console.log("\n" + "═".repeat(60));
+      console.log("🐦 POSTING FACT-CHECK REPLY TO TWITTER");
+      console.log("═".repeat(60));
+      
+      const replyText = formatFactCheckReply(responseData);
+      console.log(`\n   Reply message:\n   "${replyText}"`);
+      
+      await postReply(replyText, tweetId);
     }
-    
-    const mentions = response.data || [];
-    const includesUsers = response.includes?.users || [];
-    const includesTweets = response.includes?.tweets || [];
-    
-    if (mentions.length === 0) {
-      process.stdout.write(".");
-      return;
-    }
-    
-    console.log(`\n\n📬 Found ${mentions.length} new mention(s)!`);
-    
-    // Update pagination
-    if (mentions.length > 0) {
-      lastMentionId = mentions[0].id;
-    }
-    
-    // Process each mention
-    for (const mention of mentions) {
-      await processMention(mention, includesUsers, includesTweets);
-    }
-    
+
+    return responseData;
   } catch (error) {
-    console.log(`\n❌ Poll error: ${error.message}`);
+    console.error(`\n   ❌ API Error: ${error.message}`);
+    return { error: error.message };
   }
 }
 
-/**
- * Initialize and start the bot
- */
-async function startBot() {
-  console.log(`\n${"═".repeat(60)}`);
-  console.log(`🤖 PRAGMATIC - TWITTER FACT-CHECK BOT`);
-  console.log(`${"═".repeat(60)}`);
-  
-  // Check Gemini
-  if (!genAI) {
-    console.log(`\n⚠️  GEMINI_API_KEY not found!`);
-    console.log(`   The bot will run but cannot analyze media.`);
-    console.log(`   Add GEMINI_API_KEY to your .env file.`);
-  }
-  
-  // Verify credentials
-  console.log(`\n🔐 Verifying Twitter credentials...`);
-  
-  try {
-    const me = await getMe();
-    
-    if (!me.data) {
-      console.log(`\n❌ Failed to authenticate!`);
-      console.log(`   Error: ${JSON.stringify(me)}`);
-      process.exit(1);
-    }
-    
-    botUserId = me.data.id;
-    botUsername = me.data.username;
-    
-    console.log(`\n✅ Authenticated as @${botUsername}`);
-    console.log(`   User ID: ${botUserId}`);
-    console.log(`   Followers: ${me.data.public_metrics?.followers_count || 0}`);
-    
-  } catch (error) {
-    console.log(`\n❌ Auth error: ${error.message}`);
-    process.exit(1);
-  }
-  
-  // Start polling
-  console.log(`\n${"─".repeat(50)}`);
-  console.log(`🚀 Bot is now running!`);
-  console.log(`   Polling every ${CONFIG.POLL_INTERVAL_MS / 1000} seconds`);
-  console.log(`   Gemini: ${genAI ? "✓ Ready" : "✗ Not configured"}`);
-  console.log(`${"─".repeat(50)}`);
-  console.log(`\n📖 HOW TO USE:`);
-  console.log(`   1. Find a tweet with video/image to fact-check`);
-  console.log(`   2. Reply to that tweet and tag @${botUsername}`);
-  console.log(`   3. Wait for the bot to analyze and reply`);
-  console.log(`${"─".repeat(50)}`);
-  console.log(`\n📡 Listening for mentions... (Ctrl+C to stop)\n`);
-  
-  isRunning = true;
-  
-  // Initial poll
-  await pollMentions();
-  
-  // Set interval for continuous polling
-  const intervalId = setInterval(async () => {
-    if (isRunning) {
-      await pollMentions();
-    }
-  }, CONFIG.POLL_INTERVAL_MS);
-  
-  // Handle graceful shutdown
-  process.on("SIGINT", () => {
-    console.log(`\n\n${"═".repeat(60)}`);
-    console.log(`🛑 Shutting down...`);
-    console.log(`   Processed ${processedMentions.size} mentions`);
-    console.log(`${"═".repeat(60)}\n`);
-    
-    isRunning = false;
-    clearInterval(intervalId);
-    process.exit(0);
-  });
+// ============== RUN ==============
+
+// Check for Gemini API key
+if (!GEMINI_API_KEY) {
+  console.log("\n⚠️  GEMINI_API_KEY not found in .env file!");
+  console.log("   Add this to your .env file:");
+  console.log("   GEMINI_API_KEY=your_gemini_api_key_here\n");
+  console.log("   Get your key from: https://aistudio.google.com/app/apikey\n");
 }
 
-// ============== RUN BOT ==============
+// ===== CHANGE THIS TWEET ID TO ANALYZE DIFFERENT TWEETS =====
+const TWEET_ID = "1994478361545220195";
 
-startBot();
+// Run the Watcher Agent
+console.log(`\n🚀 Analyzing tweet: ${TWEET_ID}`);
+watcherAgent(TWEET_ID);
