@@ -7,6 +7,8 @@ from twitter_watcher import TwitterWatcher
 from twitter_bot import TwitterBot, BotConfig
 from content_classifier import ContentClassifier, UserDisclosure, quick_analyze
 from tools.google_factcheck_tool import GoogleFactCheckTool, verify_video_content
+import threading
+import requests as re
 
 app = Flask(__name__)
 CORS(app)
@@ -743,4 +745,4 @@ def bot_status():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000, use_reloader=False)
